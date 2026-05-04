@@ -181,6 +181,26 @@ function run_scenarios(
     scenarios_df = crossjoin(scens, rcps_df)
     sort!(scenarios_df, :RCP)
 
+    env_debug = parse(Bool, ENV["ADRIA_DEBUG"]) == true
+    @info "ADRIA_DEBUG = $env_debug"
+
+    env_num_cores = ENV["ADRIA_NUM_CORES"]
+    @info "ADRIA_NUM_CORES = $env_num_cores"
+
+    is_RME_based = ((typeof(dom) == RMEDomain) || (typeof(dom) == ReefModDomain))
+    para_threshold::Int64 = is_RME_based ? 8 : 20
+    active_cores::Int64 = parse(Int64, env_num_cores)
+    parallel::Bool = !env_debug && (active_cores > 1) && (nrow(scens) >= para_threshold)
+
+    env_batch = parse(Int, get(ENV, "ADRIA_BATCH_SIZE", "0"))
+    batch_size::Int = if env_batch > 0
+        env_batch
+    elseif parallel
+        ceil(Int, nrow(scens) / active_cores)
+    else
+        32
+    end
+
     @info "Setting up Result Set"
     dom, data_store = ADRIA.setup_result_store!(dom, scenarios_df, batch_size)
 
